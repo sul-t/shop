@@ -1,4 +1,4 @@
-import sqlite3
+from db_connect import connection
 
 from enum import Enum
 from pydantic import BaseModel, Field
@@ -32,18 +32,14 @@ class UpdateStatus(BaseModel):
 
 # создание товара
 def create_product(product: dict):
-    connect = sqlite3.connect('warehouse.db')
-    cursor = connect.cursor()
+    cursor = connection.cursor()
 
-    if (cursor.execute('select id from product where name = ? and description = ?', (product['name'], product['description']))).fetchone() is not None:
-        connect.close()
+    if cursor.execute('select id from product where name = ? and description = ?', (product['name'], product['description'])).fetchone() is not None:
         return False
-    
 
     cursor.execute('insert into product(name, description, price, count) values(?, ?, ?, ?)', (product['name'], product['description'], product['price'], product['count']))
     
-    connect.commit()
-    connect.close()
+    connection.commit()
 
     return True
 
@@ -56,51 +52,43 @@ def dict_factory(cursor, row):
 
 # получение всех товаров
 def all_products():
-    connect = sqlite3.connect('warehouse.db')
-    connect.row_factory = dict_factory
+    connection.row_factory = dict_factory
 
-    list_products = connect.cursor().execute('select * from product').fetchall()
+    list_products = connection.cursor().execute('select * from product').fetchall()
 
-    connect.close()
     return list_products
 
 # получение информации о товаре по id
 def product_by_id(id: int):
-    connect = sqlite3.connect('warehouse.db')
-    connect.row_factory = dict_factory
+    connection.row_factory = dict_factory
 
-    product_data = connect.cursor().execute('select * from product where id = ?', (id,)).fetchone()
+    product_data = connection.cursor().execute('select * from product where id = ?', (id,)).fetchone()
 
     return product_data
 
 # обновление данных товара
 def update_product(id: int, update_data: dict):
-    connect = sqlite3.connect('warehouse.db')
-    cursor = connect.cursor()
+    cursor = connection.cursor()
 
     cursor.execute('update product set name = ?, description = ?, price = ?, count = ? where id = ?', (update_data['name'], update_data['description'], update_data['price'], update_data['count'], id))
     
-    connect.commit()
-    connect.close()
+    connection.commit()
 
     return True
 
 # удаление товара
 def dellete_product(id: int):
-    connect = sqlite3.connect('warehouse.db')
-    cursor = connect.cursor()
+    cursor = connection.cursor()
 
     cursor.execute('delete from product where id = ?', (id,))
 
-    connect.commit()
-    connect.close()
+    connection.commit()
 
     return True
 
 # создание заказа
 def create_order(order: dict):
-    connect = sqlite3.connect('warehouse.db')
-    cursor = connect.cursor()
+    cursor = connection.cursor()
 
     new_name = order['name']
     new_description = order['description']
@@ -119,27 +107,23 @@ def create_order(order: dict):
     cursor.execute('insert into order_item(order_id, product_id, count) values(?, ?, ?)', (order_id, product_id, new_count))
     cursor.execute('update product set count = count - ? where id = ?', (new_count, product_id))
     
-    connect.commit()
-    connect.close()
+    connection.commit()
 
     return True
 
 # получение всех заказов
 def all_orders():
-    connect = sqlite3.connect('warehouse.db')
-    connect.row_factory = dict_factory
+    connection.row_factory = dict_factory
 
-    list_order = connect.cursor().execute('select * from orders').fetchall()
+    list_order = connection.cursor().execute('select * from orders').fetchall()
 
-    connect.close()
     return list_order
 
 # получение информации о заказе по id
 def order_by_id(id: int):
-    connect = sqlite3.connect('warehouse.db')
-    connect.row_factory = dict_factory
+    connection.row_factory = dict_factory
 
-    product_data = connect.cursor().execute('''
+    product_data = connection.cursor().execute('''
                                                 select o.id, oi.product_id, oi.count, o.date, o.status 
                                                 from orders as o 
                                                 join order_item as oi on oi.order_id = o.id 
@@ -150,12 +134,10 @@ def order_by_id(id: int):
 
 # обновление статуса заказа
 def update_status(id: int, new_status: UpdateStatus):
-    connect = sqlite3.connect('warehouse.db')
-    cursor = connect.cursor()
+    cursor = connection.cursor()
 
     cursor.execute('update orders set status = ? where id = ?', (new_status['status'], id))
 
-    connect.commit()
-    connect.close()
+    connection.commit()
 
     return True

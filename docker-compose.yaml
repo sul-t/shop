@@ -1,11 +1,7 @@
-version: '3.8'
-
 services:
     app:
         build: .
-        command: bash -c 'while !</dev/tcp/postgres/5432; do sleep 1; done; fastapi run main.py --host 0.0.0.0 --port 8000'
-        volumes:
-            - .:/shop
+        command: fastapi run main.py --host 0.0.0.0 --port 8000
         ports:
             - 8000:8000
         environment:
@@ -13,16 +9,10 @@ services:
         depends_on:
             - db
     db:
+        build: ./db
         container_name: postgres_db
-        image: postgres:16.4-alpine
-        volumes:
-            - postgres_data:/var/lib/postgresql/data/
-        expose:
-            - 5432
         environment:
-            - POSTGRESS_DB=shop_db
-            - POSTGRESS_DB_USER=shop_db
-            - POSTGRESS_DB_PASSWORD=shop_db
-
-volumes:
-    postgres_data:
+            POSTGRES_USER: shop_db
+            POSTGRES_PASSWORD: shop_db
+            POSTGRES_DB: shop_db
+        
