@@ -1,8 +1,11 @@
-from db_connect import connection
+from db_connect import session
+from db_managment import ProductBase, OrdersBase, OrderItemBase
 
 from enum import Enum
 from pydantic import BaseModel, Field
 from datetime import datetime
+
+from sqlalchemy import select
 
 
 
@@ -32,112 +35,96 @@ class UpdateStatus(BaseModel):
 
 # создание товара
 def create_product(product: dict):
-    cursor = connection.cursor()
-
-    if cursor.execute('select id from product where name = ? and description = ?', (product['name'], product['description'])).fetchone() is not None:
+    query_product_id = session.query(ProductBase.id).filter(ProductBase.name == product['name'] and ProductBase.description == product['description']).first()
+    
+    if query_product_id is not None:
         return False
 
-    cursor.execute('insert into product(name, description, price, count) values(?, ?, ?, ?)', (product['name'], product['description'], product['price'], product['count']))
-    
-    connection.commit()
+    data_product = ProductBase(name=product['name'], description=product['description'], price=product['price'], count=product['count'])
+    session.add(data_product)
+    session.commit()
 
     return True
 
-# создание словаря из запроса
-def dict_factory(cursor, row):
-    d = {}
-    for idx, col in enumerate(cursor.description):
-        d[col[0]] = row[idx]
-    return d
-
 # получение всех товаров
 def all_products():
-    connection.row_factory = dict_factory
+    list_products = session.scalars(select(ProductBase)).all()
 
-    list_products = connection.cursor().execute('select * from product').fetchall()
-
-    return list_products
+    return list(list_products)
 
 # получение информации о товаре по id
 def product_by_id(id: int):
-    connection.row_factory = dict_factory
-
-    product_data = connection.cursor().execute('select * from product where id = ?', (id,)).fetchone()
+    product_data = session.scalars(select(ProductBase).where(ProductBase.id == id)).first()
 
     return product_data
 
 # обновление данных товара
 def update_product(id: int, update_data: dict):
-    cursor = connection.cursor()
+    product = session.scalars(select(ProductBase).where(ProductBase.id == id)).one()
 
-    cursor.execute('update product set name = ?, description = ?, price = ?, count = ? where id = ?', (update_data['name'], update_data['description'], update_data['price'], update_data['count'], id))
-    
-    connection.commit()
+    product.name = update_data['name']
+    product.description = update_data['description']
+    product.price = update_data['price']
+    product.count = update_data['count']
+
+    session.commit()
 
     return True
 
 # удаление товара
 def dellete_product(id: int):
-    cursor = connection.cursor()
+    product = session.get(ProductBase, id)
+    session.delete(product)
 
-    cursor.execute('delete from product where id = ?', (id,))
-
-    connection.commit()
+    session.commit()
 
     return True
 
 # создание заказа
 def create_order(order: dict):
-    cursor = connection.cursor()
-
     new_name = order['name']
     new_description = order['description']
     new_count = order['count']
 
-    product_id, product_count = cursor.execute('select id, count from product where name = ? and description = ?', (new_name, new_description)).fetchone()
+    query_product = session.query(ProductBase).filter(ProductBase.name == new_name and ProductBase.description == new_description).first()
 
-    if product_id is None:
+    if query_product is None:
         return False
     
-    if new_count > product_count:
+    if new_count > query_product.count:
         raise {'message': 'Недостаточное количество товара'}
     
-    order_id = cursor.execute('insert into orders(date, status) values(?, ?) returning id', (datetime.now().date(), 'В процессе')).fetchone()[0]
+    data_order = OrdersBase(date = datetime.now().date(), status = 'В процессе')
+    session.add(data_order)
+    session.flush()
 
-    cursor.execute('insert into order_item(order_id, product_id, count) values(?, ?, ?)', (order_id, product_id, new_count))
-    cursor.execute('update product set count = count - ? where id = ?', (new_count, product_id))
-    
-    connection.commit()
+    data_order_item = OrderItemBase(order_id = data_order.id, product_id = query_product.id, count = new_count)
+    session.add(data_order_item)
+
+    update_product = session.get(ProductBase, query_product.id)
+    update_product.count = update_product.count - new_count
+
+    session.commit()
 
     return True
 
 # получение всех заказов
 def all_orders():
-    connection.row_factory = dict_factory
+    list_order = session.scalars(select(OrdersBase)).all()
 
-    list_order = connection.cursor().execute('select * from orders').fetchall()
-
-    return list_order
+    return list(list_order)
 
 # получение информации о заказе по id
 def order_by_id(id: int):
-    connection.row_factory = dict_factory
-
-    product_data = connection.cursor().execute('''
-                                                select o.id, oi.product_id, oi.count, o.date, o.status 
-                                                from orders as o 
-                                                join order_item as oi on oi.order_id = o.id 
-                                                where o.id = ?
-                                            ''', (id,)).fetchone()
+    product_data = session.scalars(select(OrdersBase.id, OrderItemBase.product_id, OrderItemBase.count, OrdersBase.date, OrdersBase.status).join(OrdersBase, OrderItemBase.order_id == OrdersBase.id).where(OrdersBase.id == id)).first()
 
     return product_data
 
 # обновление статуса заказа
 def update_status(id: int, new_status: UpdateStatus):
-    cursor = connection.cursor()
+    update_order = session.scalars(select(OrdersBase).where(OrdersBase.id == id)).one()
+    update_order.status = new_status['status']
 
-    cursor.execute('update orders set status = ? where id = ?', (new_status['status'], id))
-
-    connection.commit()
+    session.commit()
 
     return True

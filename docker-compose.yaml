@@ -7,12 +7,32 @@ services:
         environment:
             - DATABASE_URL=postgresql://shop_db:shop_db@db:5432/shop_db
         depends_on:
-            - db
+            db:
+                condition: service_healthy
+                restart: true
+        develop:
+            watch:
+                - action: sync+restart
+                  path: ./
+                  target: /shop
+                  ignore:
+                    - db/
+                    - docker-compose.yaml
+                    - Dockerfile
+                    - __pycache__/
+                    - .pytest_cache/
+                    - .venv/
     db:
-        build: ./db
+        image: postgres:alpine
         container_name: postgres_db
         environment:
             POSTGRES_USER: shop_db
             POSTGRES_PASSWORD: shop_db
             POSTGRES_DB: shop_db
-        
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U shop_db -d shop_db"]
+            interval: 10s
+            timeout: 10s
+            retries: 5
+            start_period: 30s
+    

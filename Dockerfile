@@ -10,9 +10,9 @@ WORKDIR /shop
 COPY requirements.txt req.txt
 RUN pip install -r req.txt
 
-COPY managment_db.py man_db.py
-RUN python3 man_db.py
+# COPY db_managment.py db_managment.py
+# RUN python3 db_managment.py
 
-COPY main.py utils.py ./
+COPY db_connect.py db_managment.py main.py utils.py ./
 
 
